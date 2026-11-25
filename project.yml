@@ -1,0 +1,45 @@
+name: Build IPA
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-13
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Install XcodeGen
+      run: brew install xcodegen
+
+    - name: Generate Xcode Project
+      run: xcodegen generate
+
+    - name: Build and Archive
+      run: |
+        cat <<EOF > ExportOptions.plist
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+        </dict>
+        </plist>
+        EOF
+
+        xcodebuild -project StreakRoutine.xcodeproj -scheme StreakRoutine -sdk iphoneos -configuration Release archive -archivePath $PWD/build/StreakRoutine.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+        # Đóng gói file .ipa
+        mkdir -p build/Payload
+        cp -r $PWD/build/StreakRoutine.xcarchive/Products/Applications/StreakRoutine.app build/Payload/
+        cd build
+        zip -r StreakRoutine.ipa Payload
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: StreakRoutine-ipa
+        path: build/StreakRoutine.ipa
